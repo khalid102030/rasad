@@ -1516,6 +1516,15 @@ async function proSyncPush() {
   }
   // الرفع يتطلب مفتاح المالك (يُستخدم كتحقّق داخلي، والكتابة محمية بـ RLS + المفتاح)
   if (!OWNER_KEY) { console.warn('[Rasad] لا رفع: مفتاح المالك غير مضبوط'); return; }
+  // 🛡️ حماية ضد المسح: لا ترفع reco_track فارغاً إطلاقاً.
+  //    (الأتمتة على متصفح فارغ، أو خلل جلب، كان يرفع {} فيمسح كل التاريخ.)
+  //    إن كان المحلي فارغاً، لا شيء نرفعه — فقط تخطَّ الرفع.
+  var _rtCount = RECO_TRACK ? Object.keys(RECO_TRACK).length : 0;
+  if (_rtCount === 0) {
+    console.warn('[Rasad] ⛔ تخطّي الرفع: RECO_TRACK فارغ — حماية من مسح السحابة.');
+    _pushPending = false;
+    return;
+  }
   _pushPending = true;
   proSyncBusy = true; proSyncStamp();
   try {
@@ -4377,8 +4386,8 @@ function proLaunch() {
         // يضيف فقط توصيات أيام لم تصل السحابة بعد. المالك فقط.
         if (!IS_VIEWER && !VIEW_ONLY) {
           try { proBackfillRecoTrack(); } catch(e){}
-          // ⬆️ ارفع الاتحاد (سحابة + محلي) فوراً — حتى يراكم الجهاز التالي فوقه
-          try { if (SAHMK_PROXY) proSyncPush(); } catch(e){}
+          // ⬆️ ارفع الاتحاد (سحابة + محلي) — Supabase متاح دائماً. الحارس يمنع رفع الفارغ.
+          try { proSyncPush(); } catch(e){}
         }
         proReconcileAiPicks();
         if (typeof proApplyViewerUI === 'function') proApplyViewerUI();

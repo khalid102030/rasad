@@ -1,0 +1,31 @@
+# ════════════════════════════════════════════════════════════
+# إعداد Render — مهمة مجدولة يومية (Cron Job) لأتمتة راصد
+# ملاحظة: نستخدم Cron Job (لا Web Service) لأن المهمة تشتغل مرة
+# يومياً ثم تتوقف — لا حاجة لخادم يعمل 24/7 (أوفر وأنسب).
+# ════════════════════════════════════════════════════════════
+
+services:
+  - type: cron
+    name: rasad-daily-analysis
+    runtime: node
+    plan: starter          # الخطة المجانية تكفي (مهمة قصيرة يومياً)
+    # التوقيت بصيغة cron (UTC). السعودية = UTC+3.
+    # المثال: 13:00 UTC = 4:00 عصراً بتوقيت الرياض (بعد إغلاق السوق 3 عصراً).
+    # عدّل حسب وقت اكتمال رفع بياناتك.
+    schedule: "0 13 * * 0-4"    # الأحد→الخميس، 4 عصراً الرياض
+    buildCommand: npm install
+    startCommand: node run.js
+    envVars:
+      - key: RASAD_URL
+        value: https://rasidn.netlify.app
+      # المفاتيح الحسّاسة: تُضاف من لوحة Render (Environment)، لا تُكتب هنا
+      - key: RASAD_SHEET
+        sync: false
+      - key: RASAD_CLAUDE
+        sync: false
+      - key: RASAD_SAHMK
+        sync: false
+      - key: RASAD_PROXY
+        sync: false
+      - key: RASAD_OWNER
+        sync: false

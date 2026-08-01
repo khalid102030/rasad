@@ -1,0 +1,13 @@
+{
+  "name": "rasad-automation",
+  "version": "1.0.0",
+  "description": "أتمتة التحليل اليومي لراصد عبر Playwright",
+  "main": "run.js",
+  "scripts": {
+    "start": "node run.js",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}

@@ -1525,6 +1525,23 @@ async function proSyncPush() {
     _pushPending = false;
     return;
   }
+  // 🛡️ حماية إضافية ضد الطمس الجزئي: لا ترفع نسخة ناقصة بشكل خطير فوق سحابة أكبر.
+  //    (الأتمتة على متصفح فارغ قد تبني نسخة صغيرة؛ نمنعها من طمس التاريخ الكامل.)
+  try {
+    var _chkUrl = SUPABASE_URL + '/rest/v1/' + SUPABASE_TABLE + '?id=eq.' + SUPABASE_ROW + '&select=reco_track';
+    var _chkRes = await proFetchTimeout(_chkUrl, { headers: proSupaHeaders() }, 10000);
+    if (_chkRes.ok) {
+      var _chkRows = await _chkRes.json();
+      var _cloudCount = (_chkRows[0] && _chkRows[0].reco_track) ? Object.keys(_chkRows[0].reco_track).length : 0;
+      // إن كان المحلي أقل من 60% من السحابة، ارفض (الأرجح خلل جلب أو متصفح فارغ)
+      if (_cloudCount > 20 && _rtCount < _cloudCount * 0.6) {
+        console.warn('[Rasad] ⛔ تخطّي الرفع: المحلي (' + _rtCount + ') أقل بكثير من السحابة (' + _cloudCount + ') — حماية من الطمس.');
+        proSyncErr = 'رُفض الرفع: بياناتك المحلية ناقصة مقابل السحابة';
+        _pushPending = false; proSyncStamp();
+        return;
+      }
+    }
+  } catch(e){ /* لو فشل الفحص، نكمل بحذر (الحارس الأول يمنع الفارغ) */ }
   _pushPending = true;
   proSyncBusy = true; proSyncStamp();
   try {

@@ -105,13 +105,25 @@ function log(msg) { console.log('[' + new Date().toISOString() + '] ' + msg); }
     await page.evaluate(() => {
       try { localStorage.setItem('rasad_settings_imported', '1'); } catch (e) {}
       if (typeof PRO_SETTINGS_IMPORTED !== 'undefined') PRO_SETTINGS_IMPORTED = true;
-      const b = document.getElementById('loadBtn');
-      if (b) { b.disabled = false; b.style.opacity = ''; }
     });
 
     // ── اضغط "تحميل وتحليل" ──
     log('⚡ ضغط زر تحميل وتحليل...');
-    await page.click('#loadBtn');
+    // انتظر الزر يظهر، ثم فعّله بقوة (يزيل أي قفل)، ثم استدعِ الدالة مباشرة
+    await page.waitForSelector('#loadBtn', { timeout: 30000 }).catch(() => {});
+    await page.evaluate(() => {
+      const b = document.getElementById('loadBtn');
+      if (b) { b.disabled = false; b.style.opacity = ''; b.style.pointerEvents = 'auto'; }
+    });
+    await page.waitForTimeout(500);
+    // استدعِ proStart مباشرة (أضمن من النقر لو الزر متأثر بأي CSS)
+    const started = await page.evaluate(() => {
+      if (typeof proStart === 'function') { proStart(); return true; }
+      const b = document.getElementById('loadBtn');
+      if (b) { b.click(); return true; }
+      return false;
+    });
+    if (!started) { log('⚠️ تعذّر بدء التحليل — الدالة والزر غير متاحين'); }
 
     // انتظر التطبيق يظهر (التحميل نجح)
     await page.waitForSelector('#app', { state: 'visible', timeout: 60000 })

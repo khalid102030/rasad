@@ -49,9 +49,40 @@ function log(msg) { console.log('[' + new Date().toISOString() + '] ' + msg); }
     log('📂 تحميل الصفحة: ' + CFG.url);
     await page.goto(CFG.url, { waitUntil: 'networkidle', timeout: 60000 });
 
-    // انتظر مكتبة XLSX تجهز (لازمة لتحميل الجلسات)
-    await page.waitForFunction(() => typeof window.XLSX !== 'undefined', { timeout: 30000 })
-      .catch(() => log('⚠️ XLSX لم تُحمّل — قد يتعثّر تحميل الجلسات'));
+    // انتظر مكتبة XLSX تجهز (لازمة لتحميل الجلسات) — مع محاولة تحميل بديلة
+    let xlsxReady = await page.waitForFunction(() => typeof window.XLSX !== 'undefined', { timeout: 45000 })
+      .then(() => true).catch(() => false);
+    if (!xlsxReady) {
+      log('⏳ XLSX لم تجهز — محاولة تحميلها يدوياً...');
+      await page.evaluate(() => {
+        return new Promise((resolve) => {
+          if (typeof window.XLSX !== 'undefined') return resolve();
+          const srcs = [
+            'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+            'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+          ];
+          let i = 0;
+          const tryLoad = () => {
+            if (typeof window.XLSX !== 'undefined') return resolve();
+            if (i >= srcs.length) return resolve();
+            const s = document.createElement('script');
+            s.src = srcs[i++];
+            s.onload = () => setTimeout(() => (typeof window.XLSX !== 'undefined' ? resolve() : tryLoad()), 200);
+            s.onerror = tryLoad;
+            document.head.appendChild(s);
+          };
+          tryLoad();
+        });
+      });
+      xlsxReady = await page.evaluate(() => typeof window.XLSX !== 'undefined');
+      log(xlsxReady ? '✅ XLSX جهزت بعد المحاولة اليدوية' : '⚠️ تعذّر تحميل XLSX — قد يفشل تحميل الجلسات');
+    } else {
+      log('✅ XLSX جاهزة');
+    }
+
+    // مهلة استقرار قصيرة بعد جهوزية المكتبة
+    await page.waitForTimeout(2000);
 
     // ── عبّئ الحقول (شاشة البداية) ──
     log('🔑 تعبئة المفاتيح...');

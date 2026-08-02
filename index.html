@@ -4372,11 +4372,42 @@ async function proSyncSheets() {
   }
 }
 
-function proLaunch() {
-  document.getElementById('tbInfo').textContent = '📊 آخر جلسة: ' + db.sessions[db.sessions.length-1].label + ' · ' + db.sessions.length + ' جلسة';
-  if (VIEW_ONLY) {
-    document.getElementById('tbInfo').innerHTML += ' <span style="background:var(--gold);color:#fff;padding:1px 8px;border-radius:6px;font-size:.58rem;font-weight:800;margin-right:6px;">👁️ عرض فقط</span>';
+// يعرض تاريخ آخر جلسة بوضوح + تنبيه أحمر لو البيانات قديمة (لم تتحدّث اليوم)
+function proShowSessionFreshness() {
+  var el = document.getElementById('tbInfo');
+  if (!el || !db.sessions || !db.sessions.length) return;
+  var last = db.sessions[db.sessions.length - 1];
+  var lastISO = last.date || null;
+  var txt = '📊 آخر جلسة: ' + last.label + ' · ' + db.sessions.length + ' جلسة';
+  var warn = '';
+  if (lastISO) {
+    try {
+      var lastD = new Date(lastISO);
+      var now = new Date();
+      // فرق الأيام التقويمية (بتوقيت الرياض)
+      var lastDay = new Date(lastD.getTime() + 3*3600000).toISOString().slice(0,10);
+      var todayDay = new Date(now.getTime() + 3*3600000).toISOString().slice(0,10);
+      var diffDays = Math.floor((new Date(todayDay) - new Date(lastDay)) / 86400000);
+      // اقرأ تاريخاً مقروءاً
+      var months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+      var readable = lastD.getDate() + ' ' + months[lastD.getMonth()];
+      if (diffDays <= 0) {
+        warn = ' <span style="background:#14803a;color:#fff;padding:2px 9px;border-radius:6px;font-size:.58rem;font-weight:800;margin-right:6px;">✓ محدّثة اليوم (' + readable + ')</span>';
+      } else if (diffDays === 1) {
+        warn = ' <span style="background:#c88a2e;color:#fff;padding:2px 9px;border-radius:6px;font-size:.58rem;font-weight:800;margin-right:6px;">⏳ آخر جلسة أمس (' + readable + ')</span>';
+      } else {
+        warn = ' <span style="background:#c0392b;color:#fff;padding:2px 9px;border-radius:6px;font-size:.58rem;font-weight:800;margin-right:6px;">⚠️ بيانات قديمة: ' + readable + ' (قبل ' + diffDays + ' أيام) — حدّث Google Drive!</span>';
+      }
+    } catch(e){}
   }
+  el.innerHTML = txt + warn;
+  if (VIEW_ONLY) {
+    el.innerHTML += ' <span style="background:var(--gold);color:#fff;padding:1px 8px;border-radius:6px;font-size:.58rem;font-weight:800;margin-right:6px;">👁️ عرض فقط</span>';
+  }
+}
+
+function proLaunch() {
+  proShowSessionFreshness();
   var sp = document.getElementById('splash');
   sp.classList.add('out');
   setTimeout(function(){
@@ -4469,7 +4500,7 @@ async function proRefresh() {
     proReconcileAiPicks();    // وكذلك تحليل Claude
     proResetLearnedWeights(); // أعِد حساب التعلّم على البيانات الجديدة
     if (typeof proInvalidateFrameScan === 'function') { proInvalidateFrameScan(); FRAME_SCAN = null; var _fr=document.getElementById('frameScanResults'); if(_fr) _fr.innerHTML=''; var _fb=document.getElementById('frameScanBtn'); if(_fb) _fb.innerHTML='🔭 ابدأ المسح'; }
-    document.getElementById('tbInfo').textContent = '📊 آخر جلسة: ' + db.sessions[db.sessions.length-1].label + ' · ' + db.sessions.length + ' جلسة';
+    proShowSessionFreshness();
     // ☁️ الترتيب: السحابة أولاً → املأ الناقص → اعرض (نفس مبدأ التحميل الأول)
     if (true) {   // ☁️ Supabase متاح دائماً
       proSyncPull().then(function(){

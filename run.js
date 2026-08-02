@@ -107,23 +107,45 @@ function log(msg) { console.log('[' + new Date().toISOString() + '] ' + msg); }
       if (typeof PRO_SETTINGS_IMPORTED !== 'undefined') PRO_SETTINGS_IMPORTED = true;
     });
 
+    // 🛡️ فحص حداثة البيانات قبل التحليل: نحمّل الجلسات فقط (بلا رفع) ونتحقق من التاريخ.
+    //    proSyncSheets يحمّل جلسات Google Sheet. نستدعيه ونفحص قبل أي تحليل/رفع.
+    log('🔍 فحص حداثة بيانات Google Drive...');
+    await page.evaluate(() => { try { if (typeof proSyncSheets === 'function') return proSyncSheets(); } catch(e){} });
+    await page.waitForTimeout(8000);  // امنح وقتاً لتحميل الجلسات
+    const freshness = await page.evaluate(() => {
+      try {
+        if (!window.db || !db.sessions || !db.sessions.length) return { ok: false, reason: 'لا جلسات' };
+        var last = db.sessions[db.sessions.length - 1];
+        var lastStr = String(last.date || last.label || '').slice(0, 10);
+        var riyadh = new Date(Date.now() + 3 * 3600 * 1000);
+        var today = riyadh.toISOString().slice(0, 10);
+        var yest = new Date(riyadh.getTime() - 86400000).toISOString().slice(0, 10);
+        return { ok: (lastStr === today || lastStr === yest), lastDate: lastStr, today: today, count: db.sessions.length };
+      } catch (e) { return { ok: false, reason: e.message }; }
+    });
+    if (!freshness.ok) {
+      log('⛔ بيانات غير حديثة: آخر جلسة ' + (freshness.lastDate || freshness.reason || '؟') + ' · اليوم ' + (freshness.today||'؟'));
+      log('   إيقاف دون رفع — تجنّباً لتحليل/رفع بيانات قديمة. تحقّق من تحديث Google Drive.');
+      await browser.close();
+      process.exit(3);
+    }
+    log('✅ البيانات حديثة (آخر جلسة: ' + freshness.lastDate + ' · ' + freshness.count + ' جلسة)');
+
     // ── اضغط "تحميل وتحليل" ──
     log('⚡ ضغط زر تحميل وتحليل...');
-    // انتظر الزر يظهر، ثم فعّله بقوة (يزيل أي قفل)، ثم استدعِ الدالة مباشرة
     await page.waitForSelector('#loadBtn', { timeout: 30000 }).catch(() => {});
-    await page.evaluate(() => {
-      const b = document.getElementById('loadBtn');
-      if (b) { b.disabled = false; b.style.opacity = ''; b.style.pointerEvents = 'auto'; }
-    });
-    await page.waitForTimeout(500);
-    // استدعِ proStart مباشرة (أضمن من النقر لو الزر متأثر بأي CSS)
+    await page.waitForTimeout(1000);
+    // فعّل الزر وانقره عبر الحدث الأصلي (onclick) — يشغّل proStart في نطاقه الصحيح
     const started = await page.evaluate(() => {
-      if (typeof proStart === 'function') { proStart(); return true; }
       const b = document.getElementById('loadBtn');
-      if (b) { b.click(); return true; }
-      return false;
+      if (!b) return false;
+      b.disabled = false;
+      b.style.opacity = '';
+      b.style.pointerEvents = 'auto';
+      b.click();
+      return true;
     });
-    if (!started) { log('⚠️ تعذّر بدء التحليل — الدالة والزر غير متاحين'); }
+    if (!started) { log('⚠️ تعذّر بدء التحليل — الزر غير موجود'); }
 
     // انتظر التطبيق يظهر (التحميل نجح)
     await page.waitForSelector('#app', { state: 'visible', timeout: 60000 })

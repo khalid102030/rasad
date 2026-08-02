@@ -4391,6 +4391,12 @@ function proShowSessionFreshness() {
       // اقرأ تاريخاً مقروءاً
       var months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
       var readable = lastD.getDate() + ' ' + months[lastD.getMonth()];
+      // أضِف الساعة والدقيقة (12 ساعة + ص/م) — مفيد مع تحليل الظهر والعصر
+      var hh = lastD.getHours(), mm = lastD.getMinutes();
+      var ampm = hh >= 12 ? 'م' : 'ص';
+      var h12 = hh % 12; if (h12 === 0) h12 = 12;
+      var timeStr = h12 + ':' + (mm < 10 ? '0' : '') + mm + ' ' + ampm;
+      readable = readable + ' · ' + timeStr;
       if (diffDays <= 0) {
         warn = ' <span style="background:#14803a;color:#fff;padding:2px 9px;border-radius:6px;font-size:.58rem;font-weight:800;margin-right:6px;">✓ محدّثة اليوم (' + readable + ')</span>';
       } else if (diffDays === 1) {
@@ -5811,10 +5817,13 @@ function proRecoPriority(row) {
   var rec = row.rec, pk = row.pk;
   var score = 0;
 
-  // ① اتفاق المصدرين — الإشارة الأقوى المُقاسة
-  if (rec.source === 'both') score += 50;
-  else if (rec.source === 'claude') score += 8;
-  else score += 12;
+  // ① وزن المصدر — محدّث بقياس تقرير 02-08 (213 محسومة + 38 مرشّح):
+  //    الخوارزمية وحدها = 72% نجاح (الأعلى) · مرشّحوها = 79% (يربحون رغم الاستبعاد)
+  //    الاتفاق (الاثنان) = 66% · Claude وحده = 62% (الأضعف).
+  //    → الخوارزمية تأخذ الأولوية، والاتفاق يبقى محترماً قريباً منها.
+  if (rec.source === 'both') score += 42;          // الاتفاق = محترم (قريب من الخوارزمية)
+  else if (rec.source === 'claude') score += 8;    // Claude وحده = الأضعف
+  else score += 40;                                 // الخوارزمية (bet/algo) = الأعلى قياساً
 
   // ② النمط التنبؤي الحالي — المحرّك الأهم بعد الاتفاق
   var v = row.nowVerdict || '';
@@ -5855,6 +5864,18 @@ function proRecoPriority(row) {
     var gapDays = gapMs / (24 * 3600 * 1000);
     if (gapDays <= 3) {
       score -= 15;
+    }
+  }
+
+  // ⑦ عقوبة الركود: أسبوعي في المنطقة الميتة (-0.5% إلى +0.7%) وقت الظهور
+  // البيانات (تقرير 02-08، 213 محسومة): 51% نجاح فقط vs 67% أساس.
+  // السهم الراكد بلا بذرة حركة — العدو الحقيقي (أوضح من أي فخ ارتفاع).
+  // ملاحظة: لا نعاقب لو المنطقة الحمراء طبّقت أصلاً (تجنّب عقوبة مزدوجة).
+  if (rec.sig) {
+    var pw2 = rec.sig.preWeekly, pm2 = rec.sig.preMonthly;
+    var redZone = (typeof pw2 === 'number' && typeof pm2 === 'number' && pw2 <= 0 && pm2 <= 0);
+    if (!redZone && typeof pw2 === 'number' && pw2 > -0.5 && pw2 < 0.7) {
+      score -= 8;
     }
   }
 

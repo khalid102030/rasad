@@ -26,45 +26,9 @@ function log(msg) { console.log('[' + new Date().toISOString() + '] ' + msg); }
   log('🚀 بدء الأتمتة — فتح المتصفح...');
   const browser = await chromium.launch({
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      // تقليل استهلاك الذاكرة (خطة Render محدودة بـ512MB)
-      '--single-process',              // عملية واحدة بدل عدة عمليات (أوفر ذاكرة)
-      '--no-zygote',
-      '--disable-gpu',
-      '--disable-extensions',
-      '--disable-background-networking',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-breakpad',
-      '--disable-component-extensions-with-background-pages',
-      '--disable-features=TranslateUI,BlinkGenPropertyTrees',
-      '--disable-ipc-flooding-protection',
-      '--disable-renderer-backgrounding',
-      '--enable-features=NetworkService,NetworkServiceInProcess',
-      '--force-color-profile=srgb',
-      '--metrics-recording-only',
-      '--mute-audio',
-      '--js-flags=--max-old-space-size=384'   // حدّ ذاكرة JS
-    ]
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   });
-  const ctx = await browser.newContext({
-    locale: 'ar-SA',
-    timezoneId: 'Asia/Riyadh',
-    // عطّل الصور والخطوط (توفّر ذاكرة كبيرة — راصد لا يحتاجها للتحليل)
-    javaScriptEnabled: true,
-    viewport: { width: 1280, height: 800 }
-  });
-  // اعترض الموارد الثقيلة غير الضرورية (صور، خطوط، ميديا) لتوفير الذاكرة
-  await ctx.route('**/*', (route) => {
-    const type = route.request().resourceType();
-    if (type === 'image' || type === 'font' || type === 'media') {
-      return route.abort();
-    }
-    return route.continue();
-  });
+  const ctx = await browser.newContext({ locale: 'ar-SA', timezoneId: 'Asia/Riyadh' });
   const page = await ctx.newPage();
 
   // التقط رسائل الكونسول — نعرف منها اكتمال الرفع
